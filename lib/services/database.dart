@@ -27,16 +27,16 @@ class DatabaseService {
   // For simplicity, I'm keeping your provided updateUserData as is,
   // assuming it handles initial setup or careful updates elsewhere.
   Future<void> updateUserData({
-    required String userName,
-    required String phoneNumber,
+    String? userName,
+    String? phoneNumber,
     String? displayName,
     String? email,
     String? bio,
     String? website,
     bool? isPrivate,
     int? numberOfPosts,
-    int? numberOfFollowers, // Explicitly passed, but often managed by increments
-    int? numberOfFollowing, // Explicitly passed, but often managed by increments
+    int? numberOfFollowers,
+    int? numberOfFollowing,
     dynamic createdAt,
     dynamic lastActive,
     List<String>? fcmTokens,
@@ -49,33 +49,31 @@ class DatabaseService {
       print("Error: UID is null when trying to update user data.");
       return;
     }
+    Map<String, dynamic> dataToUpdate = {};
 
-    Map<String, dynamic> dataToUpdate = {
-      'userName': userName,
-      'phoneNumber': phoneNumber,
-      if (displayName != null) 'displayName': displayName,
-      if (email != null) 'email': email,
-      if (bio != null) 'bio': bio,
-      if (website != null) 'website': website,
-      'isPrivate': isPrivate ?? false,
-      'numberOfPosts': numberOfPosts ?? 0,
-      'numberOfFollowers': numberOfFollowers ?? 0,
-      'numberOfFollowing': numberOfFollowing ?? 0,
-      if (fcmTokens != null) 'fcmTokens': fcmTokens,
-      'isVerified': isVerified ?? false,
-      if (settings != null) 'settings': settings,
-      if (blockedUsers != null) 'blockedUsers': blockedUsers,
-      if (userProfilePicUrl != null) 'userProfilePicUrl': userProfilePicUrl,
-    };
-
+    // Only add fields that are not null
+    if (userName != null) dataToUpdate['userName'] = userName;
+    if (phoneNumber != null) dataToUpdate['phoneNumber'] = phoneNumber;
+    if (displayName != null) dataToUpdate['displayName'] = displayName;
+    if (email != null) dataToUpdate['email'] = email;
+    if (bio != null) dataToUpdate['bio'] = bio;
+    if (website != null) dataToUpdate['website'] = website;
+    if (isPrivate != null) dataToUpdate['isPrivate'] = isPrivate;
+    if (numberOfPosts != null) dataToUpdate['numberOfPosts'] = numberOfPosts;
+    if (numberOfFollowers != null) dataToUpdate['numberOfFollowers'] = numberOfFollowers;
+    if (numberOfFollowing != null) dataToUpdate['numberOfFollowing'] = numberOfFollowing;
+    if (fcmTokens != null) dataToUpdate['fcmTokens'] = fcmTokens;
+    if (isVerified != null) dataToUpdate['isVerified'] = isVerified;
+    if (settings != null) dataToUpdate['settings'] = settings;
+    if (blockedUsers != null) dataToUpdate['blockedUsers'] = blockedUsers;
+    if (userProfilePicUrl != null) dataToUpdate['userProfilePicUrl'] = userProfilePicUrl;
     if (createdAt != null) dataToUpdate['createdAt'] = createdAt;
     if (lastActive != null) dataToUpdate['lastActive'] = lastActive;
-
-    return await profileCollection.doc(uid).set(
-      dataToUpdate,
-      SetOptions(merge: true),
-    );
+    if (dataToUpdate.isNotEmpty) {
+      return await profileCollection.doc(uid).update(dataToUpdate);
+    }
   }
+
 
   Future<void> incrementPostCount() async {
     if (uid == null) {
@@ -492,5 +490,6 @@ class DatabaseService {
         .get();
     return querySnapshot.docs.isNotEmpty;
   }
+
 }
 

@@ -1,0 +1,71 @@
+name: evalumate
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.1.2
+  firebase_core: ^3.13.1
+  firebase_auth: ^5.5.4
+  cloud_firestore: ^5.6.8
+  firebase_storage: ^12.4.6
+  provider: ^6.1.5
+  flutter_spinkit: ^5.2.1
+  flutter_launcher_icons: ^0.14.3
+  # NEW dependencies for create_post_screen.dart and search_screen.dart
+  image_cropper: ^9.1.0
+  mime_type: ^1.0.0
+  path: ^1.9.0
+  video_player: ^2.9.1
+  file_picker: ^8.0.3 # ADD THIS LINE
+
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.3.1
+
+
+# --- flutter_launcher_icons configuration STARTS HERE (corrected) ---
+flutter_launcher_icons:
+  android: "launcher_icon" # Keep this to ensure adaptive icons are generated
+  ios: true
+  image_path: "assets/images/evalumate.png" # This is used for older Android versions and iOS
+  min_sdk_android: 21
+
+  # Explicitly define adaptive icon layers for Android 8.0+
+  adaptive_icon_background: "#81C784" # Set background to Colors.green[300] hex
+  adaptive_icon_foreground: "assets/images/evalumate.png" # Use your main image as the foreground
+# --- flutter_launcher_icons configuration ENDS HERE ---
+
+
+# --- flutter_native_splash configuration (unchanged) ---
+flutter_native_splash:
+  color: "#81C784"
+  image: "assets/images/evalumate.png"
+
+  android_gravity: "center"
+  ios_content_mode: "center"
+
+  android: true
+  ios: true
+  fullscreen: true
+# --- flutter_native_splash configuration ENDS HERE ---
+
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  # ... (rest of your flutter section, e.g., fonts, etc.)

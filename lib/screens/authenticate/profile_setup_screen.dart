@@ -36,7 +36,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         backgroundColor: Colors.green[300],
         elevation: 0.0,
         title: const Text('Set Up Your Profile'),
-        automaticallyImplyLeading: false, // Prevent going back to registration
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context); // Goes back to previous screen (registration)
+          },
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 50.0),

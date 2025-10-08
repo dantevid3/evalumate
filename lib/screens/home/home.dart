@@ -7,6 +7,14 @@ import 'package:evalumate/services/database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:evalumate/models/post.dart'; // Import Post model
 import 'package:evalumate/screens/home/edit_post_screen.dart'; // Re-import PostDetailScreen
+import 'package:evalumate/screens/settings/change_username_screen.dart';
+import 'package:evalumate/screens/settings/change_bio_screen.dart';
+import 'package:evalumate/screens/settings/change_website_screen.dart';
+import 'package:evalumate/screens/settings/privacy_settings_screen.dart';
+import 'package:evalumate/screens/settings/notification_settings_screen.dart';
+import 'package:evalumate/screens/settings/saved_posts_screen.dart';
+import 'package:evalumate/models/profile.dart';
+
 
 class Home extends StatelessWidget {
   final AuthService _auth;
@@ -101,62 +109,122 @@ class Home extends StatelessWidget {
                 ],
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Change Username'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.phone),
-              title: const Text('Phone Number'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.lock),
-              title: const Text('Privacy'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.notifications),
-              title: const Text('Notifications'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.description),
-              title: const Text('Change Bio'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.link),
-              title: const Text('Change Website'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.bookmark),
-              title: const Text('Saved Posts'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
-              onTap: () async {
-                Navigator.pop(context);
-                await _auth.signOut();
+            StreamBuilder<Profile?>(
+              stream: DatabaseService(uid: uid).userData,
+              builder: (context, snapshot) {
+                final profile = snapshot.data;
+
+                return Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.edit),
+                      title: const Text('Change Username'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChangeUsernameScreen(uid: uid),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.phone),
+                      title: const Text('Phone Number'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Phone Number'),
+                            content: Text('Current: ${profile?.phoneNumber ?? 'Not set'}'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.lock),
+                      title: const Text('Privacy'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PrivacySettingsScreen(uid: uid),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.notifications),
+                      title: const Text('Notifications'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => NotificationSettingsScreen(uid: uid),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.description),
+                      title: const Text('Change Bio'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChangeBioScreen(
+                              uid: uid,
+                              currentBio: profile?.bio,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.link),
+                      title: const Text('Change Website'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChangeWebsiteScreen(
+                              uid: uid,
+                              currentWebsite: profile?.website,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.bookmark),
+                      title: const Text('Saved Posts'),
+                      onTap: () {
+                        Navigator.pop(context);
+                      },
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.logout),
+                      title: const Text('Logout'),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        await _auth.signOut();
+                      },
+                    ),
+                  ],
+                );
               },
             ),
           ],
