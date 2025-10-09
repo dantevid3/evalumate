@@ -98,16 +98,14 @@ class _RegisterState extends State<Register> {
                         error = 'Please supply a valid email or check credentials';
                         loading = false;
                       });
-                    } else {
-                      // Registration successful, navigate to ProfileSetupScreen
-                      // Pass the UID to the ProfileSetupScreen
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ProfileSetupScreen(uid: result.uid),
-                        ),
-                      );
                     }
+                    // else {
+                    //   // Registration successful, navigate to ProfileSetupScreen
+                    //   // Pass the UID to the ProfileSetupScreen
+                    //   Navigator.of(context).pushReplacement(
+                    //     MaterialPageRoute(builder: (context) => ProfileSetupScreen(uid: result.uid))
+                    //   );
+                    //}
                   }
                 },
                 child: const Text(

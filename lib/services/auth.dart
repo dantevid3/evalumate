@@ -48,8 +48,15 @@ class AuthService {
       UserCredential result = await _auth.createUserWithEmailAndPassword(email: email, password: password);
       User? user = result.user;
 
-      // REMOVED: Initial profile creation from here.
-      // The ProfileSetupScreen will now handle initial profile data creation.
+      if (user != null) {
+        // Create a Firestore document for the user in the 'profiles' collection
+        await FirebaseFirestore.instance.collection('profiles').doc(user.uid).set({
+          'email': email,
+          'userName': '', // Default name, can be updated later
+          'bio': '', // Default bio, can be updated later
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       return _userFromFirebaseUser(user);
     } catch (e) {

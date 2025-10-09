@@ -1,10 +1,9 @@
-// lib/screens/authenticate/profile_setup_screen.dart
 import 'package:flutter/material.dart';
 import 'package:evalumate/services/database.dart';
 import 'package:evalumate/shared/loading.dart';
 import 'package:evalumate/shared/constants.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:evalumate/screens/wrapper.dart'; // Import your Wrapper
+import 'package:evalumate/screens/wrapper.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   final String uid; // The UID of the newly registered user
@@ -39,7 +38,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            Navigator.pop(context); // Goes back to previous screen (registration)
           },
         ),
       ),
@@ -57,7 +55,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
               const SizedBox(height: 30),
               TextFormField(
-                decoration: textInputDecoration.copyWith(hintText: 'name'),
+                decoration: textInputDecoration.copyWith(hintText: 'Username (unique)'),
                 validator: (val) => val!.isEmpty ? 'Enter a username (unique)' : null,
                 onChanged: (val) {
                   setState(() => userName = val.trim());
@@ -101,9 +99,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     });
 
                     try {
+                      final databaseService = DatabaseService(uid: widget.uid);
 
                       // 1. Check if phone number is taken
-                      bool phoneNumberExists = await DatabaseService().isPhoneNumberTaken(phoneNumber);
+                      bool phoneNumberExists = await databaseService.isPhoneNumberTaken(phoneNumber);
                       if (phoneNumberExists) {
                         if (!mounted) return;
                         setState(() {
@@ -113,31 +112,26 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         return; // Stop execution
                       }
 
-                      // 2. (Optional) Check if user name is taken (consider implications of being optional)
-                      // If displayName can be optional and not unique, you might skip this.
-                      // If it must be unique *when provided*, add a check.
+                      // 2. Check if username is taken
                       if (userName.isNotEmpty) {
-                        bool userNameExists = await DatabaseService().isUserNameTaken(userName);
+                        bool userNameExists = await databaseService.isUserNameTaken(userName);
                         if (userNameExists) {
                           if (!mounted) return;
                           setState(() {
                             loading = false;
-                            error = 'This user name is already taken. Please choose another.';
+                            error = 'This username is already taken. Please choose another.';
                           });
                           return; // Stop execution
                         }
                       }
 
-
-                      // If all checks pass, then update user data
-                      await DatabaseService(uid: widget.uid).updateUserData(
+                      // 3. Update user data
+                      await databaseService.updateUserData(
                         userName: userName,
                         displayName: displayName.isNotEmpty ? displayName : null,
                         phoneNumber: phoneNumber,
                         bio: bio.isNotEmpty ? bio : null,
                         createdAt: FieldValue.serverTimestamp(),
-                        // Initialize counts to 0 if they're not set by default in updateUserData
-                        // This ensures they exist for FieldValue.increment later.
                         numberOfPosts: 0,
                         numberOfFollowers: 0,
                         numberOfFollowing: 0,
@@ -145,6 +139,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
                       if (!mounted) return;
 
+                      // Navigate to the Wrapper screen
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(builder: (context) => const Wrapper()),

@@ -35,11 +35,13 @@ class Wrapper extends StatelessWidget {
           }
 
           final Profile? userProfile = snapshot.data;
-
+          //
           // If profile data is null, it means the profile is not yet set up
-          if (userProfile == null) {
+          if (userProfile?.userName == "") {
             return ProfileSetupScreen(uid: user.uid); // Direct to profile setup
-          } else {
+          }
+
+          else {
             // Profile exists, direct to the main app (MultiPageToggler)
             return MultiPageToggler();
           }
