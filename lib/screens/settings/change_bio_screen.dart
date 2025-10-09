@@ -4,7 +4,7 @@ import 'package:evalumate/services/database.dart';
 class ChangeBioScreen extends StatefulWidget {
   final String uid;
   final String? currentBio;
-  const ChangeBioScreen({Key? key, required this.uid, this.currentBio}) : super(key: key);
+  const ChangeBioScreen({super.key, required this.uid, this.currentBio});
 
   @override
   State<ChangeBioScreen> createState() => _ChangeBioScreenState();

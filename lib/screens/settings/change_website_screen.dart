@@ -4,7 +4,7 @@ import 'package:evalumate/services/database.dart';
 class ChangeWebsiteScreen extends StatefulWidget {
   final String uid;
   final String? currentWebsite;
-  const ChangeWebsiteScreen({Key? key, required this.uid, this.currentWebsite}) : super(key: key);
+  const ChangeWebsiteScreen({super.key, required this.uid, this.currentWebsite});
 
   @override
   State<ChangeWebsiteScreen> createState() => _ChangeWebsiteScreenState();

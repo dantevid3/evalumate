@@ -4,7 +4,7 @@ import 'package:evalumate/shared/constants.dart';
 import 'package:evalumate/shared/loading.dart';
 import 'package:flutter/material.dart';
 import 'package:evalumate/services/auth.dart';
-import 'package:evalumate/screens/authenticate/profile_setup_screen.dart'; // Import the ProfileSetupScreen
+// Import the ProfileSetupScreen
 
 class Register extends StatefulWidget {
   final Function toggleView;

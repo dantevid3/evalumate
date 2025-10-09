@@ -338,7 +338,7 @@ class _SearchScreenState extends State<SearchScreen> {
     } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
       return Center(
         child: Text(
-          'No posts found for "${_searchQuery}" in this ${_searchType == SearchType.brands ? 'brand' : _searchType == SearchType.categories ? 'category' : 'product'}.',
+          'No posts found for "$_searchQuery" in this ${_searchType == SearchType.brands ? 'brand' : _searchType == SearchType.categories ? 'category' : 'product'}.',
           style: TextStyle(color: Colors.grey[600], fontSize: 16),
           textAlign: TextAlign.center,
         ),
@@ -361,7 +361,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (suggestions.isEmpty && _searchQuery.isNotEmpty) {
       return Center(
         child: Text(
-          'No ${_searchType == SearchType.brands ? 'brands' : _searchType == SearchType.categories ? 'categories' : 'products'} found matching "${_searchQuery}".',
+          'No ${_searchType == SearchType.brands ? 'brands' : _searchType == SearchType.categories ? 'categories' : 'products'} found matching "$_searchQuery".',
           style: TextStyle(color: Colors.grey[600], fontSize: 16),
           textAlign: TextAlign.center,
         ),

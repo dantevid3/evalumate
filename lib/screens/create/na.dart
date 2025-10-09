@@ -8,13 +8,12 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:evalumate/services/database.dart';
 import 'package:evalumate/models/profile.dart';
-import 'dart:ui' as ui; // REQUIRED for decodeImageFromList
+// REQUIRED for decodeImageFromList
 
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import for Timestamp and FieldValue
+// Import for Timestamp and FieldValue
 
 // Keeping Post model import as it's essential for post creation logic.
 // All other specified imports have been removed.
-import 'package:evalumate/models/post.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});

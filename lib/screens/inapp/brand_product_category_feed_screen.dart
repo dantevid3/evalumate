@@ -42,7 +42,7 @@ class BrandProductCategoryFeedScreen extends StatelessWidget {
     }
 
     // Helper to get descriptive text for empty state
-    String _getFeedTypeString() {
+    String getFeedTypeString() {
       switch (feedType) {
         case FeedType.brand:
           return 'brand';
@@ -92,7 +92,7 @@ class BrandProductCategoryFeedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Be the first to post about this ${_getFeedTypeString()}!', // Uses helper
+                      'Be the first to post about this ${getFeedTypeString()}!', // Uses helper
                       style: const TextStyle(fontSize: 16, color: Colors.grey),
                       textAlign: TextAlign.center,
                     ),

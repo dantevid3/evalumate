@@ -3,7 +3,7 @@
 import 'package:evalumate/screens/feed/view_post_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // For current user UID
-import 'package:cloud_firestore/cloud_firestore.dart'; // For Timestamp in PostDetailScreen
+// For Timestamp in PostDetailScreen
 import 'package:evalumate/models/profile.dart';
 import 'package:evalumate/models/post.dart';
 import 'package:evalumate/services/database.dart';
@@ -103,7 +103,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       const SizedBox(height: 10),
                       Text(
                         // Display username even if profile data is null, fallback to initial profile's username
-                        '${widget.profile.userName}',
+                        widget.profile.userName,
                         style: TextStyle(fontSize: 16, color: Colors.grey),
                       ),
                       const SizedBox(height: 4),
@@ -141,20 +141,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 const SizedBox(height: 16),
                               if (!isCurrentUserProfile && _currentUserId != null)
                                 StreamBuilder<bool>(
-                                  stream: DatabaseService().isFollowing(_currentUserId!, profile.uid),
+                                  stream: DatabaseService().isFollowing(_currentUserId, profile.uid),
                                   builder: (context, snapshot) {
                                     final bool isFollowing = snapshot.data ?? false;
                                     return ElevatedButton(
                                       onPressed: () async {
-                                        if (_currentUserId == null) return; // Should not happen if button is shown
                                         try {
                                           if (isFollowing) {
-                                            await DatabaseService().unfollowUser(_currentUserId!, profile.uid);
+                                            await DatabaseService().unfollowUser(_currentUserId, profile.uid);
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               SnackBar(content: Text('Unfollowed ${profile.userName}')),
                                             );
                                           } else {
-                                            await DatabaseService().followUser(_currentUserId!, profile.uid);
+                                            await DatabaseService().followUser(_currentUserId, profile.uid);
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               SnackBar(content: Text('Following ${profile.userName}')),
                                             );

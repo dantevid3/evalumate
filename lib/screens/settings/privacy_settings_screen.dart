@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:evalumate/services/database.dart';
-import 'package:evalumate/models/profile.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   final String uid;
-  const PrivacySettingsScreen({Key? key, required this.uid}) : super(key: key);
+  const PrivacySettingsScreen({super.key, required this.uid});
 
   @override
   State<PrivacySettingsScreen> createState() => _PrivacySettingsScreenState();

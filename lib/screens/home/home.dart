@@ -12,8 +12,6 @@ import 'package:evalumate/screens/settings/change_bio_screen.dart';
 import 'package:evalumate/screens/settings/change_website_screen.dart';
 import 'package:evalumate/screens/settings/privacy_settings_screen.dart';
 import 'package:evalumate/screens/settings/notification_settings_screen.dart';
-import 'package:evalumate/screens/settings/saved_posts_screen.dart';
-import 'package:evalumate/models/profile.dart';
 
 
 class Home extends StatelessWidget {

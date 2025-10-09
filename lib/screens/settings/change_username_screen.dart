@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:evalumate/services/database.dart';
-import 'package:evalumate/models/profile.dart';
 
 class ChangeUsernameScreen extends StatefulWidget {
   final String uid;
-  const ChangeUsernameScreen({Key? key, required this.uid}) : super(key: key);
+  const ChangeUsernameScreen({super.key, required this.uid});
 
   @override
   State<ChangeUsernameScreen> createState() => _ChangeUsernameScreenState();

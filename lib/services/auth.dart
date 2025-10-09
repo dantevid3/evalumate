@@ -1,7 +1,7 @@
 // lib/services/auth.dart
 
 import 'package:evalumate/models/currentuser.dart'; // Your CurrentUser model
-import 'package:evalumate/services/database.dart'; // Your DatabaseService
+// Your DatabaseService
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 

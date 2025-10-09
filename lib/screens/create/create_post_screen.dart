@@ -10,7 +10,7 @@ import 'package:evalumate/services/database.dart';
 import 'package:evalumate/models/profile.dart';
 import 'dart:ui' as ui; // REQUIRED for decodeImageFromList
 
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import for Timestamp and FieldValue
+// Import for Timestamp and FieldValue
 
 // NEW imports for category input and media handling - COMMENTED OUT AS REQUESTED
 // import 'package:evalumate/models/post.dart'; // Keep Post model import for now if it's strictly needed for DatabaseService and Post object creation
@@ -25,7 +25,6 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import for Timestamp a
 // If Post model is explicitly used for object creation in _uploadPost, it must remain.
 // If DatabaseService expects a Post object, this import is essential.
 // Assuming Post is an essential data model.
-import 'package:evalumate/models/post.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -163,7 +162,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       final storageRef = FirebaseStorage.instance.ref();
       // Using media.name for file extension, removing p.extension
       final String fileName =
-          'posts/${uid}/${DateTime.now().millisecondsSinceEpoch}_${media.name}';
+          'posts/$uid/${DateTime.now().millisecondsSinceEpoch}_${media.name}';
       final UploadTask uploadTask = storageRef.child(fileName).putFile(File(media.path));
       final TaskSnapshot snapshot = await uploadTask;
       final String downloadUrl = await snapshot.ref.getDownloadURL();

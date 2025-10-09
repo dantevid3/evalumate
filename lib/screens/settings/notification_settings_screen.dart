@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   final String uid;
-  const NotificationSettingsScreen({Key? key, required this.uid}) : super(key: key);
+  const NotificationSettingsScreen({super.key, required this.uid});
 
   @override
   State<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
