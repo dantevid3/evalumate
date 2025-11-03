@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:evalumate/models/profile.dart';
 import 'package:evalumate/models/post.dart';
 import 'package:evalumate/models/comment.dart';
+import 'package:evalumate/models/notification.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DatabaseService {
   final String? uid;
@@ -114,43 +116,46 @@ class DatabaseService {
       return Stream.value([]);
     }
     String searchLower = query.toLowerCase();
-    // Using startAt and endAt for prefix search (case-insensitive for usernames)
-    return profileCollection
-        .orderBy('userName') // Ensure index is set up for 'userName' field
-        .startAt([searchLower])
-        .endAt(['$searchLower\uf8ff'])
-        .snapshots()
-        .map((snapshot) {
+
+    // Get all profiles and filter client-side for both userName and displayName
+    return profileCollection.snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) => Profile.fromFirestore(doc))
-          .where((profile) => profile.userName.toLowerCase().contains(searchLower))
+          .where((profile) {
+        // Search in userName
+        bool matchesUserName = profile.userName.toLowerCase().contains(searchLower);
+        // Search in displayName (if it exists)
+        bool matchesDisplayName = profile.displayName != null &&
+            profile.displayName!.toLowerCase().contains(searchLower);
+
+        return matchesUserName || matchesDisplayName;
+      })
           .toList();
     });
   }
-
   // --- MODIFIED: Follow/Unfollow Logic (Already updated to subcollections) ---
 
-  Future<void> followUser(String currentUserId, String targetUserId) async {
-    // Add current user to target user's followers subcollection
-    await profileCollection.doc(targetUserId).collection('followers').doc(currentUserId).set({
-      'followedAt': FieldValue.serverTimestamp(),
-    });
-
-    // Add target user to current user's following subcollection
-    await profileCollection.doc(currentUserId).collection('following').doc(targetUserId).set({
-      'followingAt': FieldValue.serverTimestamp(),
-    });
-
-    // Increment target user's followers count (in the profile document)
-    await profileCollection.doc(targetUserId).update({
-      'numberOfFollowers': FieldValue.increment(1),
-    });
-
-    // Increment current user's following count (in the profile document)
-    await profileCollection.doc(currentUserId).update({
-      'numberOfFollowing': FieldValue.increment(1),
-    });
-  }
+  // Future<void> followUser(String currentUserId, String targetUserId) async {
+  //   // Add current user to target user's followers subcollection
+  //   await profileCollection.doc(targetUserId).collection('followers').doc(currentUserId).set({
+  //     'followedAt': FieldValue.serverTimestamp(),
+  //   });
+  //
+  //   // Add target user to current user's following subcollection
+  //   await profileCollection.doc(currentUserId).collection('following').doc(targetUserId).set({
+  //     'followingAt': FieldValue.serverTimestamp(),
+  //   });
+  //
+  //   // Increment target user's followers count (in the profile document)
+  //   await profileCollection.doc(targetUserId).update({
+  //     'numberOfFollowers': FieldValue.increment(1),
+  //   });
+  //
+  //   // Increment current user's following count (in the profile document)
+  //   await profileCollection.doc(currentUserId).update({
+  //     'numberOfFollowing': FieldValue.increment(1),
+  //   });
+  // }
 
   Future<void> unfollowUser(String currentUserId, String targetUserId) async {
     // Remove current user from target user's followers subcollection
@@ -326,6 +331,642 @@ class DatabaseService {
   }
   // --- Existing Comment Data Operations (Already updated to subcollections) ---
 
+  // Future<void> addComment({
+  //   required String postId,
+  //   required String uid,
+  //   required String text,
+  //   required String userName,
+  //   String? userProfilePicUrl,
+  // }) async {
+  //   try {
+  //     final commentSubCollection = postsCollection.doc(postId).collection('comments');
+  //     await commentSubCollection.add({
+  //       'uid': uid,
+  //       'text': text,
+  //       'createdAt': FieldValue.serverTimestamp(),
+  //       'userName': userName,
+  //       'userProfilePicUrl': userProfilePicUrl,
+  //     });
+  //     // Increment commentsCount on the post document
+  //     await postsCollection.doc(postId).update({
+  //       'commentsCount': FieldValue.increment(1),
+  //     });
+  //   } catch (e) {
+  //     print('Error adding comment: $e');
+  //   }
+  // }
+
+  Stream<List<Comment>> getCommentsForPost(String postId) {
+    return postsCollection.doc(postId).collection('comments')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Comment.fromFirestore(doc)).toList();
+    });
+  }
+
+  // --- Existing Like/Unlike Post Operations (Already updated to subcollections) ---
+
+  // Future<void> toggleLikePost(String postId, String userId) async {
+  //   final likeDocRef = postsCollection.doc(postId).collection('likes').doc(userId);
+  //   final doc = await likeDocRef.get();
+  //
+  //   if (doc.exists) {
+  //     await likeDocRef.delete();
+  //     await postsCollection.doc(postId).update({'likesCount': FieldValue.increment(-1)});
+  //   } else {
+  //     await likeDocRef.set({'likedAt': FieldValue.serverTimestamp()});
+  //     await postsCollection.doc(postId).update({'likesCount': FieldValue.increment(1)});
+  //   }
+  // }
+
+  Stream<bool> hasLikedPost(String postId, String userId) {
+    return postsCollection.doc(postId).collection('likes').doc(userId).snapshots().map((snapshot) {
+      return snapshot.exists;
+    });
+  }
+
+  // --- NEW: Brand & Product Related Methods (FIXED for case-insensitive matching) ---
+
+  // Method to get distinct brands for auto-suggestion
+  Stream<List<String>> getDistinctBrands() {
+    return postsCollection
+        .orderBy('brand')
+        .snapshots()
+        .map((snapshot) {
+      Set<String> brands = {};
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('brand') && data['brand'] != null && data['brand'].toString().trim().isNotEmpty) {
+          // Store original case, not lowercase
+          brands.add(data['brand'].toString().trim());
+        }
+      }
+      return brands.toList()..sort();
+    });
+  }
+
+  // Method to get distinct products for auto-suggestion
+  Stream<List<String>> getDistinctProducts() {
+    return postsCollection
+        .orderBy('product')
+        .snapshots()
+        .map((snapshot) {
+      Set<String> products = {};
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('product') && data['product'] != null && data['product'].toString().trim().isNotEmpty) {
+          // Store original case, not lowercase
+          products.add(data['product'].toString().trim());
+        }
+      }
+      return products.toList()..sort();
+    });
+  }
+
+  // NEW: Get all distinct categories from posts
+  Stream<List<String>> getDistinctCategories() {
+    return postsCollection.snapshots().map((snapshot) {
+      Set<String> distinctCategories = {};
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('categories') && data['categories'] is List) {
+          for (var category in (data['categories'] as List).cast<String>()) {
+            // Store original case, not lowercase
+            distinctCategories.add(category.trim());
+          }
+        }
+      }
+      return distinctCategories.toList()..sort();
+    });
+  }
+
+  // FIXED: Method to search posts by brand (case-insensitive, exclude private users)
+  Stream<List<Post>> getPostsByBrand(String brandName) {
+    return postsCollection
+        .orderBy('brand')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      // Get all posts matching the brand
+      final matchingPosts = snapshot.docs
+          .where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('brand') && data['brand'] != null) {
+          return data['brand'].toString().toLowerCase() == brandName.toLowerCase();
+        }
+        return false;
+      })
+          .map((doc) => Post.fromFirestore(doc))
+          .toList();
+
+      // Filter out posts from private users who aren't being followed
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) {
+        // Not logged in - only show public posts
+        final filteredPosts = <Post>[];
+        for (var post in matchingPosts) {
+          final userDoc = await profileCollection.doc(post.uid).get();
+          final userData = userDoc.data() as Map<String, dynamic>?;
+          if (userData?['isPrivate'] != true) {
+            filteredPosts.add(post);
+          }
+        }
+        return filteredPosts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      }
+
+      // Get list of users current user is following
+      final followingSnapshot = await profileCollection
+          .doc(currentUserId)
+          .collection('following')
+          .get();
+      final followingIds = followingSnapshot.docs.map((doc) => doc.id).toSet();
+
+      // Filter posts
+      final filteredPosts = <Post>[];
+      for (var post in matchingPosts) {
+        final userDoc = await profileCollection.doc(post.uid).get();
+        final userData = userDoc.data() as Map<String, dynamic>?;
+        final isPrivate = userData?['isPrivate'] == true;
+
+        // Include post if: user is public, or user is private but being followed, or it's user's own post
+        if (!isPrivate || followingIds.contains(post.uid) || post.uid == currentUserId) {
+          filteredPosts.add(post);
+        }
+      }
+
+      return filteredPosts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    });
+  }
+
+// FIXED: Method to search posts by product (case-insensitive, exclude private users)
+  Stream<List<Post>> getPostsByProduct(String productName) {
+    return postsCollection
+        .orderBy('product')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      final matchingPosts = snapshot.docs
+          .where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('product') && data['product'] != null) {
+          return data['product'].toString().toLowerCase() == productName.toLowerCase();
+        }
+        return false;
+      })
+          .map((doc) => Post.fromFirestore(doc))
+          .toList();
+
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) {
+        final filteredPosts = <Post>[];
+        for (var post in matchingPosts) {
+          final userDoc = await profileCollection.doc(post.uid).get();
+          final userData = userDoc.data() as Map<String, dynamic>?;
+          if (userData?['isPrivate'] != true) {
+            filteredPosts.add(post);
+          }
+        }
+        return filteredPosts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      }
+
+      final followingSnapshot = await profileCollection
+          .doc(currentUserId)
+          .collection('following')
+          .get();
+      final followingIds = followingSnapshot.docs.map((doc) => doc.id).toSet();
+
+      final filteredPosts = <Post>[];
+      for (var post in matchingPosts) {
+        final userDoc = await profileCollection.doc(post.uid).get();
+        final userData = userDoc.data() as Map<String, dynamic>?;
+        final isPrivate = userData?['isPrivate'] == true;
+
+        if (!isPrivate || followingIds.contains(post.uid) || post.uid == currentUserId) {
+          filteredPosts.add(post);
+        }
+      }
+
+      return filteredPosts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    });
+  }
+
+// FIXED: Method to search posts by category (case-insensitive, exclude private users)
+  Stream<List<Post>> getPostsByCategory(String categoryName) {
+    return postsCollection
+        .snapshots()
+        .asyncMap((snapshot) async {
+      final matchingPosts = snapshot.docs
+          .where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('categories') && data['categories'] is List) {
+          return (data['categories'] as List)
+              .any((cat) => cat.toString().toLowerCase() == categoryName.toLowerCase());
+        }
+        return false;
+      })
+          .map((doc) => Post.fromFirestore(doc))
+          .toList();
+
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) {
+        final filteredPosts = <Post>[];
+        for (var post in matchingPosts) {
+          final userDoc = await profileCollection.doc(post.uid).get();
+          final userData = userDoc.data() as Map<String, dynamic>?;
+          if (userData?['isPrivate'] != true) {
+            filteredPosts.add(post);
+          }
+        }
+        return filteredPosts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      }
+
+      final followingSnapshot = await profileCollection
+          .doc(currentUserId)
+          .collection('following')
+          .get();
+      final followingIds = followingSnapshot.docs.map((doc) => doc.id).toSet();
+
+      final filteredPosts = <Post>[];
+      for (var post in matchingPosts) {
+        final userDoc = await profileCollection.doc(post.uid).get();
+        final userData = userDoc.data() as Map<String, dynamic>?;
+        final isPrivate = userData?['isPrivate'] == true;
+
+        if (!isPrivate || followingIds.contains(post.uid) || post.uid == currentUserId) {
+          filteredPosts.add(post);
+        }
+      }
+
+      return filteredPosts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    });
+  }
+
+  Future<bool> isPhoneNumberTaken(String phoneNumber) async {
+    final querySnapshot = await profileCollection
+        .where('phoneNumber', isEqualTo: phoneNumber)
+        .limit(1)
+        .get();
+    return querySnapshot.docs.isNotEmpty;
+  }
+
+  Future<bool> isUserNameTaken(String userName) async {
+    final querySnapshot = await profileCollection
+        .where('userName', isEqualTo: userName) // FIXED: Changed from 'displayName' to 'userName'
+        .limit(1)
+        .get();
+    return querySnapshot.docs.isNotEmpty;
+  }
+
+  // Add these methods after the existing getPostsByCategory method
+
+// Get posts by brand filtered by friends only
+  Stream<List<Post>> getPostsByBrandFromFriends(String brandName, String currentUserId) {
+    return getFollowingUids(currentUserId).asyncMap((followingUids) async {
+      if (followingUids.isEmpty) {
+        return <Post>[];
+      }
+
+      final snapshot = await postsCollection
+          .where('uid', whereIn: followingUids.length > 10 ? followingUids.sublist(0, 10) : followingUids)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('brand') && data['brand'] != null) {
+          return data['brand'].toString().toLowerCase() == brandName.toLowerCase();
+        }
+        return false;
+      })
+          .map((doc) => Post.fromFirestore(doc))
+          .toList();
+    });
+  }
+
+// Get posts by product filtered by friends only
+  Stream<List<Post>> getPostsByProductFromFriends(String productName, String currentUserId) {
+    return getFollowingUids(currentUserId).asyncMap((followingUids) async {
+      if (followingUids.isEmpty) {
+        return <Post>[];
+      }
+
+      final snapshot = await postsCollection
+          .where('uid', whereIn: followingUids.length > 10 ? followingUids.sublist(0, 10) : followingUids)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('product') && data['product'] != null) {
+          return data['product'].toString().toLowerCase() == productName.toLowerCase();
+        }
+        return false;
+      })
+          .map((doc) => Post.fromFirestore(doc))
+          .toList();
+    });
+  }
+
+// Get posts by category filtered by friends only
+  Stream<List<Post>> getPostsByCategoryFromFriends(String categoryName, String currentUserId) {
+    return getFollowingUids(currentUserId).asyncMap((followingUids) async {
+      if (followingUids.isEmpty) {
+        return <Post>[];
+      }
+
+      final snapshot = await postsCollection
+          .where('uid', whereIn: followingUids.length > 10 ? followingUids.sublist(0, 10) : followingUids)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('categories') && data['categories'] is List) {
+          return (data['categories'] as List)
+              .any((cat) => cat.toString().toLowerCase() == categoryName.toLowerCase());
+        }
+        return false;
+      })
+          .map((doc) => Post.fromFirestore(doc))
+          .toList();
+    });
+  }
+
+  // --- NOTIFICATIONS SYSTEM ---
+
+  final CollectionReference notificationsCollection =
+  FirebaseFirestore.instance.collection('notifications');
+
+  // Create a notification
+  Future<void> createNotification({
+    required String type,
+    required String fromUserId,
+    required String fromUserName,
+    String? fromUserProfilePic,
+    required String toUserId,
+    String? postId,
+    String? postImageUrl,
+    String? commentText,
+  }) async {
+    try {
+      // Don't create notification for self-actions
+      if (fromUserId == toUserId) return;
+
+      await notificationsCollection.add({
+        'type': type,
+        'fromUserId': fromUserId,
+        'fromUserName': fromUserName,
+        'fromUserProfilePic': fromUserProfilePic,
+        'toUserId': toUserId,
+        'postId': postId,
+        'postImageUrl': postImageUrl,
+        'commentText': commentText,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+    } catch (e) {
+      print('Error creating notification: $e');
+    }
+  }
+
+  // Get notifications for a user
+  Stream<List<AppNotification>> getUserNotifications(String userId) {
+    return notificationsCollection
+        .where('toUserId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => AppNotification.fromFirestore(doc)).toList();
+    });
+  }
+
+  // Mark notification as read
+  Future<void> markNotificationAsRead(String notificationId) async {
+    try {
+      await notificationsCollection.doc(notificationId).update({'isRead': true});
+    } catch (e) {
+      print('Error marking notification as read: $e');
+    }
+  }
+
+  // Mark all notifications as read
+  Future<void> markAllNotificationsAsRead(String userId) async {
+    try {
+      final unreadNotifications = await notificationsCollection
+          .where('toUserId', isEqualTo: userId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      for (var doc in unreadNotifications.docs) {
+        await doc.reference.update({'isRead': true});
+      }
+    } catch (e) {
+      print('Error marking all notifications as read: $e');
+    }
+  }
+
+  // Get unread notification count
+  Stream<int> getUnreadNotificationCount(String userId) {
+    return notificationsCollection
+        .where('toUserId', isEqualTo: userId)
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
+  // --- FOLLOW REQUESTS (FOR PRIVATE ACCOUNTS) ---
+
+  // Send follow request to private account
+  Future<void> sendFollowRequest(String currentUserId, String targetUserId, String currentUserName, String? currentUserProfilePic) async {
+    try {
+      // Add to follow requests subcollection
+      await profileCollection.doc(targetUserId).collection('followRequests').doc(currentUserId).set({
+        'requestedAt': FieldValue.serverTimestamp(),
+        'userName': currentUserName,
+        'userProfilePicUrl': currentUserProfilePic,
+      });
+
+      // Create notification
+      final targetProfile = await profileCollection.doc(targetUserId).get();
+      final targetData = targetProfile.data() as Map<String, dynamic>?;
+
+      await createNotification(
+        type: 'follow_request',
+        fromUserId: currentUserId,
+        fromUserName: currentUserName,
+        fromUserProfilePic: currentUserProfilePic,
+        toUserId: targetUserId,
+      );
+    } catch (e) {
+      print('Error sending follow request: $e');
+      rethrow;
+    }
+  }
+
+  // Accept follow request
+
+  Future<void> acceptFollowRequest(String currentUserId, String requesterId) async {
+    try {
+      // Execute the follow action
+      await followUser(requesterId, currentUserId);
+
+      // Remove from follow requests
+      await profileCollection.doc(currentUserId).collection('followRequests').doc(requesterId).delete();
+
+      // Delete the follow_request notification
+      final notifications = await notificationsCollection
+          .where('toUserId', isEqualTo: currentUserId)
+          .where('fromUserId', isEqualTo: requesterId)
+          .where('type', isEqualTo: 'follow_request')
+          .get();
+
+      for (var doc in notifications.docs) {
+        await doc.reference.delete();
+      }
+
+      // Create a follow notification - FIXED: Send to the requester, not current user
+      final currentProfile = await profileCollection.doc(currentUserId).get();
+      final currentData = currentProfile.data() as Map<String, dynamic>?;
+
+      await createNotification(
+        type: 'follow_accepted', // Changed type to be more specific
+        fromUserId: currentUserId, // Current user (who accepted)
+        fromUserName: currentData?['userName'] ?? 'User',
+        fromUserProfilePic: currentData?['userProfilePicUrl'],
+        toUserId: requesterId, // Send to the person who requested
+      );
+    } catch (e) {
+      print('Error accepting follow request: $e');
+      rethrow;
+    }
+  }
+
+  // Reject follow request
+  Future<void> rejectFollowRequest(String currentUserId, String requesterId) async {
+    try {
+      // Remove from follow requests
+      await profileCollection.doc(currentUserId).collection('followRequests').doc(requesterId).delete();
+
+      // Delete the notification
+      final notifications = await notificationsCollection
+          .where('toUserId', isEqualTo: currentUserId)
+          .where('fromUserId', isEqualTo: requesterId)
+          .where('type', isEqualTo: 'follow_request')
+          .get();
+
+      for (var doc in notifications.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      print('Error rejecting follow request: $e');
+      rethrow;
+    }
+  }
+
+  // Check if follow request is pending
+  Stream<bool> hasFollowRequestPending(String currentUserId, String targetUserId) {
+    return profileCollection
+        .doc(targetUserId)
+        .collection('followRequests')
+        .doc(currentUserId)
+        .snapshots()
+        .map((snapshot) => snapshot.exists);
+  }
+
+  // Get follow requests for current user
+  Stream<List<Map<String, dynamic>>> getFollowRequests(String userId) {
+    return profileCollection
+        .doc(userId)
+        .collection('followRequests')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      List<Map<String, dynamic>> requests = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        requests.add({
+          'userId': doc.id,
+          'userName': data['userName'],
+          'userProfilePicUrl': data['userProfilePicUrl'],
+          'requestedAt': data['requestedAt'],
+        });
+      }
+      return requests;
+    });
+  }
+
+  // Update existing followUser method to create notification
+  Future<void> followUser(String currentUserId, String targetUserId) async {
+    // Add current user to target user's followers subcollection
+    await profileCollection.doc(targetUserId).collection('followers').doc(currentUserId).set({
+      'followedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Add target user to current user's following subcollection
+    await profileCollection.doc(currentUserId).collection('following').doc(targetUserId).set({
+      'followingAt': FieldValue.serverTimestamp(),
+    });
+
+    // Increment target user's followers count (in the profile document)
+    await profileCollection.doc(targetUserId).update({
+      'numberOfFollowers': FieldValue.increment(1),
+    });
+
+    // Increment current user's following count (in the profile document)
+    await profileCollection.doc(currentUserId).update({
+      'numberOfFollowing': FieldValue.increment(1),
+    });
+
+    // Create follow notification
+    final currentProfile = await profileCollection.doc(currentUserId).get();
+    final currentData = currentProfile.data() as Map<String, dynamic>?;
+
+    await createNotification(
+      type: 'follow',
+      fromUserId: currentUserId,
+      fromUserName: currentData?['userName'] ?? 'User',
+      fromUserProfilePic: currentData?['userProfilePicUrl'],
+      toUserId: targetUserId,
+    );
+  }
+
+  // Update toggleLikePost to create notification
+  Future<void> toggleLikePost(String postId, String userId) async {
+    final likeDocRef = postsCollection.doc(postId).collection('likes').doc(userId);
+    final doc = await likeDocRef.get();
+
+    if (doc.exists) {
+      await likeDocRef.delete();
+      await postsCollection.doc(postId).update({'likesCount': FieldValue.increment(-1)});
+
+      // Optionally: Delete the like notification (we'll keep it for history)
+    } else {
+      await likeDocRef.set({'likedAt': FieldValue.serverTimestamp()});
+      await postsCollection.doc(postId).update({'likesCount': FieldValue.increment(1)});
+
+      // Create like notification
+      final postDoc = await postsCollection.doc(postId).get();
+      final postData = postDoc.data() as Map<String, dynamic>?;
+      final userDoc = await profileCollection.doc(userId).get();
+      final userData = userDoc.data() as Map<String, dynamic>?;
+
+      if (postData != null) {
+        await createNotification(
+          type: 'like',
+          fromUserId: userId,
+          fromUserName: userData?['userName'] ?? 'User',
+          fromUserProfilePic: userData?['userProfilePicUrl'],
+          toUserId: postData['uid'],
+          postId: postId,
+          postImageUrl: postData['mediaUrl'],
+        );
+      }
+    }
+  }
+
+  // Update addComment to create notification
   Future<void> addComment({
     required String postId,
     required String uid,
@@ -347,149 +988,25 @@ class DatabaseService {
       await postsCollection.doc(postId).update({
         'commentsCount': FieldValue.increment(1),
       });
+
+      // Create comment notification
+      final postDoc = await postsCollection.doc(postId).get();
+      final postData = postDoc.data() as Map<String, dynamic>?;
+
+      if (postData != null) {
+        await createNotification(
+          type: 'comment',
+          fromUserId: uid,
+          fromUserName: userName,
+          fromUserProfilePic: userProfilePicUrl,
+          toUserId: postData['uid'],
+          postId: postId,
+          postImageUrl: postData['mediaUrl'],
+          commentText: text,
+        );
+      }
     } catch (e) {
       print('Error adding comment: $e');
     }
   }
-
-  Stream<List<Comment>> getCommentsForPost(String postId) {
-    return postsCollection.doc(postId).collection('comments')
-        .orderBy('createdAt', descending: false) // Usually comments are oldest first
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => Comment.fromFirestore(doc)).toList();
-    });
-  }
-
-  // --- Existing Like/Unlike Post Operations (Already updated to subcollections) ---
-
-  Future<void> toggleLikePost(String postId, String userId) async {
-    final likeDocRef = postsCollection.doc(postId).collection('likes').doc(userId);
-    final doc = await likeDocRef.get();
-
-    if (doc.exists) {
-      await likeDocRef.delete();
-      await postsCollection.doc(postId).update({'likesCount': FieldValue.increment(-1)});
-    } else {
-      await likeDocRef.set({'likedAt': FieldValue.serverTimestamp()});
-      await postsCollection.doc(postId).update({'likesCount': FieldValue.increment(1)});
-    }
-  }
-
-  Stream<bool> hasLikedPost(String postId, String userId) {
-    return postsCollection.doc(postId).collection('likes').doc(userId).snapshots().map((snapshot) {
-      return snapshot.exists;
-    });
-  }
-
-  // --- NEW: Brand & Product Related Methods (Incorporating the new subcollection structure) ---
-
-  // Method to get distinct brands for auto-suggestion
-  // This approach is not ideal for large datasets as it reads ALL posts.
-  // For production, consider using Firestore indexes or a Cloud Function to
-  // maintain a separate collection of distinct brands/products.
-  Stream<List<String>> getDistinctBrands() {
-    return postsCollection
-        .orderBy('brand') // Ensure an index exists for 'brand'
-        .snapshots()
-        .map((snapshot) {
-      Set<String> brands = {};
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        if (data.containsKey('brand') && data['brand'] != null && data['brand'].isNotEmpty) {
-          brands.add(data['brand'].toString().toLowerCase()); // Store in lowercase for case-insensitive matching
-        }
-      }
-      return brands.toList()..sort(); // Return sorted list of unique brands
-    });
-  }
-
-  // Method to get distinct products for auto-suggestion
-  // Same caveat as getDistinctBrands applies here.
-  Stream<List<String>> getDistinctProducts() {
-    return postsCollection
-        .orderBy('product') // Ensure an index exists for 'product'
-        .snapshots()
-        .map((snapshot) {
-      Set<String> products = {};
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        if (data.containsKey('product') && data['product'] != null && data['product'].isNotEmpty) {
-          products.add(data['product'].toString().toLowerCase()); // Store in lowercase
-        }
-      }
-      return products.toList()..sort(); // Return sorted list of unique products
-    });
-  }
-
-
-  // NEW: Get all distinct categories from posts
-  Stream<List<String>> getDistinctCategories() {
-    return postsCollection.snapshots().map((snapshot) {
-      Set<String> distinctCategories = {};
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        if (data.containsKey('categories') && data['categories'] is List) {
-          // Ensure categories is a List<String>
-          for (var category in (data['categories'] as List).cast<String>()) {
-            distinctCategories.add(category.toLowerCase().trim());
-          }
-        }
-      }
-      return distinctCategories.toList()..sort(); // Add .sort() for consistent order
-    });
-  }
-
-  // Method to search posts by brand (exact match)
-  Stream<List<Post>> getPostsByBrand(String brandName) {
-    return postsCollection
-        .where('brand', isEqualTo: brandName) // Ensure an index exists for 'brand'
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) =>
-        snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList());
-  }
-
-  // Method to search posts by product (exact match)
-  Stream<List<Post>> getPostsByProduct(String productName) {
-    return postsCollection
-        .where('product', isEqualTo: productName) // Ensure an index exists for 'product'
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) =>
-        snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList());
-  }
-
-  // Method to search posts by category (using arrayContains for list field)
-  Stream<List<Post>> getPostsByCategory(String categoryName) {
-    // Ensure an index exists for 'categories' (array) and 'createdAt'
-    return postsCollection
-        .where('categories', arrayContains: categoryName) // Use arrayContains for List<String> field
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) =>
-        snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList());
-  }
-
-
-  Future<bool> isPhoneNumberTaken(String phoneNumber) async {
-    final querySnapshot = await profileCollection
-        .where('phoneNumber', isEqualTo: phoneNumber)
-        .limit(1)
-        .get();
-    return querySnapshot.docs.isNotEmpty;
-  }
-
-  // Display Name uniqueness is more complex due to case-insensitivity and being optional.
-  // If you need strict uniqueness for display names, you might enforce lowercasing
-  // for storage and checking, or keep a separate collection of unique display names.
-  Future<bool> isUserNameTaken(String userName) async {
-    final querySnapshot = await profileCollection
-        .where('displayName', isEqualTo: userName)
-        .limit(1)
-        .get();
-    return querySnapshot.docs.isNotEmpty;
-  }
-
 }
-

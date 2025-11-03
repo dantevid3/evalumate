@@ -3,11 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:evalumate/models/post.dart';
 import 'package:evalumate/services/database.dart';
-import 'package:evalumate/screens/feed/post_card.dart'; // Re-use your PostCard widget
+import 'package:evalumate/screens/feed/post_card.dart';
 import 'package:evalumate/utils/feed_type.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class BrandProductCategoryFeedScreen extends StatelessWidget {
-  final String query; // The brand name, product name, or category name
+class BrandProductCategoryFeedScreen extends StatefulWidget {
+  final String query;
   final FeedType feedType;
 
   const BrandProductCategoryFeedScreen({
@@ -17,37 +18,50 @@ class BrandProductCategoryFeedScreen extends StatelessWidget {
   });
 
   @override
+  State<BrandProductCategoryFeedScreen> createState() => _BrandProductCategoryFeedScreenState();
+}
+
+class _BrandProductCategoryFeedScreenState extends State<BrandProductCategoryFeedScreen> {
+  bool _showFriendsOnly = false;
+
+  @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
     String appBarTitle;
     Stream<List<Post>> postsStream;
 
-    // Determine app bar title and corresponding stream based on feedType
-    switch (feedType) {
+    // Determine app bar title and corresponding stream based on feedType and friends filter
+    switch (widget.feedType) {
       case FeedType.brand:
-        appBarTitle = 'Brand: $query';
-        postsStream = DatabaseService().getPostsByBrand(query);
+        appBarTitle = 'Brand: ${widget.query}';
+        postsStream = _showFriendsOnly && currentUser != null
+            ? DatabaseService().getPostsByBrandFromFriends(widget.query, currentUser.uid)
+            : DatabaseService().getPostsByBrand(widget.query);
         break;
       case FeedType.product:
-        appBarTitle = 'Product: $query';
-        postsStream = DatabaseService().getPostsByProduct(query); // NEW: Get posts by product
+        appBarTitle = 'Product: ${widget.query}';
+        postsStream = _showFriendsOnly && currentUser != null
+            ? DatabaseService().getPostsByProductFromFriends(widget.query, currentUser.uid)
+            : DatabaseService().getPostsByProduct(widget.query);
         break;
       case FeedType.category:
-        appBarTitle = 'Category: $query';
-        postsStream = DatabaseService().getPostsByCategory(query);
+        appBarTitle = 'Category: ${widget.query}';
+        postsStream = _showFriendsOnly && currentUser != null
+            ? DatabaseService().getPostsByCategoryFromFriends(widget.query, currentUser.uid)
+            : DatabaseService().getPostsByCategory(widget.query);
         break;
       default:
-        appBarTitle = 'Feed: $query'; // Fallback
-        postsStream = Stream.value([]); // Empty stream for unknown types
+        appBarTitle = 'Feed: ${widget.query}';
+        postsStream = Stream.value([]);
         break;
     }
 
-    // Helper to get descriptive text for empty state
     String getFeedTypeString() {
-      switch (feedType) {
+      switch (widget.feedType) {
         case FeedType.brand:
           return 'brand';
         case FeedType.product:
-          return 'product'; // NEW: for product
+          return 'product';
         case FeedType.category:
           return 'category';
         default:
@@ -60,6 +74,24 @@ class BrandProductCategoryFeedScreen extends StatelessWidget {
         title: Text(appBarTitle),
         backgroundColor: Colors.green[300],
         elevation: 0,
+        actions: [
+          // Friends filter toggle button
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              icon: Icon(
+                _showFriendsOnly ? Icons.people : Icons.people_outline,
+                color: _showFriendsOnly ? Colors.white : Colors.white70,
+              ),
+              tooltip: _showFriendsOnly ? 'Show All' : 'Friends Only',
+              onPressed: () {
+                setState(() {
+                  _showFriendsOnly = !_showFriendsOnly;
+                });
+              },
+            ),
+          ),
+        ],
       ),
       body: StreamBuilder<List<Post>>(
         stream: postsStream,
@@ -78,21 +110,25 @@ class BrandProductCategoryFeedScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      feedType == FeedType.brand
+                      widget.feedType == FeedType.brand
                           ? Icons.business
-                          : (feedType == FeedType.product ? Icons.shopping_bag : Icons.label), // NEW: icon for product
+                          : (widget.feedType == FeedType.product ? Icons.shopping_bag : Icons.label),
                       size: 80,
                       color: Colors.grey,
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'No posts found for "$query".',
+                      _showFriendsOnly
+                          ? 'No posts from friends for "${widget.query}".'
+                          : 'No posts found for "${widget.query}".',
                       style: const TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Be the first to post about this ${getFeedTypeString()}!', // Uses helper
+                      _showFriendsOnly
+                          ? 'Your friends haven\'t posted about this ${getFeedTypeString()} yet!'
+                          : 'Be the first to post about this ${getFeedTypeString()}!',
                       style: const TextStyle(fontSize: 16, color: Colors.grey),
                       textAlign: TextAlign.center,
                     ),
@@ -107,7 +143,7 @@ class BrandProductCategoryFeedScreen extends StatelessWidget {
             itemCount: posts.length,
             itemBuilder: (context, index) {
               final Post post = posts[index];
-              return PostCard(post: post); // Display each post using PostCard
+              return PostCard(post: post);
             },
           );
         },
